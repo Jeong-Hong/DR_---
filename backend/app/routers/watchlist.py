@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models import Watchlist, DailyPrice
 from app.schemas import WatchlistCreate, WatchlistResponse, WatchlistDetail, DailyPriceResponse, DashboardSummary
 from app.services.kiwoom_client import kiwoom_client
-from app.services.telegram_bot import send_enrollment_notification, send_removal_notification
+from app.services.telegram_bot import send_enrollment_notification, send_removal_notification, _send_to_all
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["watchlist"])
@@ -103,3 +103,20 @@ async def delete_history(record_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(watchlist)
     await db.commit()
     return {"message": f"{stock_name} 이력이 삭제되었습니다"}
+
+
+# ══════════════════════════════════════════
+# 공지 전송
+# ══════════════════════════════════════════
+from pydantic import BaseModel as _BM
+
+class NoticeRequest(_BM):
+    message: str
+
+@router.post("/telegram/notice")
+async def send_notice(req: NoticeRequest):
+    if not req.message.strip():
+        raise HTTPException(status_code=400, detail="메시지를 입력해주세요")
+    formatted = f"📢 *공지사항*\n\n{req.message.strip()}"
+    await _send_to_all(formatted)
+    return {"message": "공지가 전송되었습니다"}

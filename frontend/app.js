@@ -368,4 +368,38 @@ document.addEventListener('DOMContentLoaded', () => {
     checkServerStatus();
     loadDashboard();
     loadRecentRegistrations();
+
+    // ── 공지 모달 이벤트 ──
+    const modal = document.getElementById('notice-modal');
+    const textarea = document.getElementById('notice-message');
+
+    document.getElementById('btn-open-notice')?.addEventListener('click', () => {
+        modal.classList.add('active');
+        textarea.value = '';
+        textarea.focus();
+    });
+
+    const closeModal = () => modal.classList.remove('active');
+    document.getElementById('btn-close-notice')?.addEventListener('click', closeModal);
+    document.getElementById('btn-cancel-notice')?.addEventListener('click', closeModal);
+
+    // 오버레이 클릭 시 닫기
+    modal?.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+    });
+
+    // 전송
+    document.getElementById('btn-send-notice')?.addEventListener('click', async () => {
+        const message = textarea.value.trim();
+        if (!message) { alert('공지 내용을 입력해주세요.'); return; }
+        if (!confirm('공지를 텔레그램으로 전송하시겠습니까?')) return;
+
+        const result = await apiPost('/api/telegram/notice', { message });
+        if (result) {
+            alert('✅ 공지가 전송되었습니다!');
+            closeModal();
+        } else {
+            alert('공지 전송 중 오류가 발생했습니다.');
+        }
+    });
 });
