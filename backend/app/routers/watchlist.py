@@ -65,6 +65,7 @@ async def delete_watchlist(stock_code: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="관찰 중인 해당 종목이 없습니다")
     watchlist.status = "expired"
     watchlist.updated_at = datetime.now()
+    await db.commit()
     await send_removal_notification(stock_name=watchlist.stock_name, stock_code=watchlist.stock_code)
     return {"message": f"{watchlist.stock_name} 관찰 종료됨"}
 

@@ -1,127 +1,371 @@
-const API_BASE = window.location.origin + '/api';
+/* ══════════════════════════════════════════════════
+   키움 관심종목 관리 시스템 — app.js
+   Dark Luxury Edition
+   ══════════════════════════════════════════════════ */
 
-document.addEventListener('DOMContentLoaded', () => { loadAll(); });
+const API_BASE = 'http://localhost:8000';
 
-async function loadAll() {
-    await Promise.all([loadSummary(), loadWatching(), loadHistory(), checkHealth()]);
+// ── 상태 ──
+let allStocks = [];
+let historyFilter = 'all';
+
+// ══════════════════════════════════════════
+// 페이지 라우팅
+// ══════════════════════════════════════════
+function navigateTo(pageId) {
+    // 페이지 전환
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    const target = document.getElementById(`page-${pageId}`);
+    if (target) target.classList.add('active');
+
+    // 네비게이션 활성 표시
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    const navItem = document.querySelector(`.nav-item[data-page="${pageId}"]`);
+    if (navItem) navItem.classList.add('active');
+
+    // 페이지별 데이터 로드
+    if (pageId === 'dashboard') loadDashboard();
+    if (pageId === 'history') loadHistory();
 }
 
-async function checkHealth() {
-    const dot = document.querySelector('.status-dot');
-    const label = dot.parentElement.querySelector('span:last-child');
+// 네비게이션 이벤트
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', () => navigateTo(item.dataset.page));
+});
+
+// 섹션 링크
+document.querySelectorAll('.section-link[data-page]').forEach(link => {
+    link.addEventListener('click', (e) => {
+        e.preventDefault();
+        navigateTo(link.dataset.page);
+    });
+});
+
+// 뒤로가기
+document.getElementById('btn-back-dashboard')?.addEventListener('click', (e) => {
+    e.preventDefault();
+    navigateTo('dashboard');
+});
+
+// ══════════════════════════════════════════
+// API 호출 유틸리티
+// ══════════════════════════════════════════
+async function apiFetch(endpoint) {
     try {
-        const resp = await fetch(`${API_BASE}/health`);
-        if (resp.ok) { dot.className = 'status-dot online'; label.textContent = '서버 연결됨'; }
-        else { throw new Error(); }
-    } catch { dot.className = 'status-dot offline'; label.textContent = '서버 연결 실패'; }
+        const res = await fetch(`${API_BASE}${endpoint}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.error('API 호출 실패:', err);
+        return null;
+    }
 }
 
-async function loadSummary() {
+async function apiPost(endpoint, body) {
     try {
-        const resp = await fetch(`${API_BASE}/dashboard/summary`);
-        if (!resp.ok) throw new Error();
-        const data = await resp.json();
-        document.getElementById('watchingCount').textContent = data.watching_count;
-        document.getElementById('alertedCount').textContent = data.alerted_count;
-        document.getElementById('expiredCount').textContent = data.expired_count;
-        document.getElementById('successRate').textContent = data.alert_success_rate !== null ? `${data.alert_success_rate}%` : '-';
-    } catch (e) { console.error('요약 로드 오류:', e); }
+        const res = await fetch(`${API_BASE}${endpoint}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.error('API POST 실패:', err);
+        return null;
+    }
 }
 
-async function loadWatching() {
-    const container = document.getElementById('watchingList');
-    const badge = document.getElementById('watchingBadge');
+async function apiDelete(endpoint) {
     try {
-        const resp = await fetch(`${API_BASE}/watchlist?status=watching`);
-        if (!resp.ok) throw new Error();
-        const stocks = await resp.json();
-        badge.textContent = stocks.length;
-        if (stocks.length === 0) { container.innerHTML = '<div class="empty-state"><span class="empty-icon">📭</span><p>관찰 중인 종목이 없습니다</p></div>'; return; }
-        container.innerHTML = stocks.map(stock => renderStockItem(stock, true)).join('');
-    } catch (e) { console.error('관찰 목록 오류:', e); }
+        const res = await fetch(`${API_BASE}${endpoint}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+    } catch (err) {
+        console.error('API DELETE 실패:', err);
+        return null;
+    }
 }
 
-let currentHistoryFilter = 'all';
-async function loadHistory(filter) {
-    if (filter) currentHistoryFilter = filter;
-    const container = document.getElementById('historyList');
+// ══════════════════════════════════════════
+// 서버 상태 확인
+// ══════════════════════════════════════════
+async function checkServerStatus() {
+    const dot = document.getElementById('status-dot');
+    const text = document.getElementById('server-status-text');
     try {
-        let url = `${API_BASE}/dashboard/history`;
-        if (currentHistoryFilter !== 'all') url += `?status=${currentHistoryFilter}`;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error();
-        const stocks = await resp.json();
-        if (stocks.length === 0) { container.innerHTML = '<div class="empty-state"><span class="empty-icon">📋</span><p>이력이 없습니다</p></div>'; return; }
-        container.innerHTML = stocks.map(stock => renderStockItem(stock, false, true)).join('');
-    } catch (e) { console.error('이력 로드 오류:', e); }
+        const res = await fetch(`${API_BASE}/`);
+        if (res.ok) {
+            dot.classList.remove('disconnected');
+            text.textContent = '서버 연결됨';
+        } else throw new Error();
+    } catch {
+        dot.classList.add('disconnected');
+        text.textContent = '연결 끊김';
+    }
 }
 
-function filterHistory(filter, tabEl) {
-    document.querySelectorAll('.filter-tabs .tab').forEach(t => t.classList.remove('active'));
-    tabEl.classList.add('active');
-    loadHistory(filter);
+// ══════════════════════════════════════════
+// 대시보드
+// ══════════════════════════════════════════
+async function loadDashboard() {
+    // 통계
+    const summary = await apiFetch('/api/dashboard/summary');
+    if (summary) {
+        document.getElementById('stat-watching').textContent = summary.watching_count ?? 0;
+        document.getElementById('stat-alerted').textContent = summary.alerted_count ?? 0;
+        document.getElementById('stat-expired').textContent = summary.expired_count ?? 0;
+        const total = (summary.alerted_count ?? 0) + (summary.expired_count ?? 0);
+        const rate = total > 0
+            ? Math.round((summary.alerted_count / total) * 100) + '%'
+            : '—';
+        document.getElementById('stat-rate').textContent = rate;
+    }
+
+    // 관찰 목록
+    const stocks = await apiFetch('/api/watchlist?status=watching');
+    allStocks = stocks || [];
+    renderWatchlist(allStocks);
 }
 
-function renderStockItem(stock, showActions, showHistoryDelete = false) {
-    const statusIcon = { watching: '👀', alerted: '🚀', expired: '⏰' }[stock.status] || '📌';
-    const rateClass = stock.peak_rate >= 0 ? 'rate-positive' : 'rate-negative';
-    const rateSign = stock.peak_rate >= 0 ? '+' : '';
-    const barWidth = Math.min((stock.peak_rate / 50) * 100, 100);
-    const barClass = stock.peak_rate >= 50 ? 'achieved' : '';
-    const enrolledDate = new Date(stock.enrolled_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-    let metaHtml = `<span>편입: ${enrolledDate}</span><span>D-0 저가: ${formatPrice(stock.d0_low_price)}원</span>`;
-    if (stock.alert_day) metaHtml += `<span>D+${stock.alert_day} 달성</span>`;
-    let actionsHtml = '';
-    if (showActions) actionsHtml = `<div class="stock-actions"><button class="btn btn-danger" onclick="event.stopPropagation(); removeStock('${stock.stock_code}')">삭제</button></div>`;
-    else if (showHistoryDelete) actionsHtml = `<div class="stock-actions"><button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteHistory(${stock.id})">🗑</button></div>`;
-    return `<div class="stock-item" onclick="showDetail('${stock.stock_code}')"><span class="stock-status-icon">${statusIcon}</span><div class="stock-info"><div class="stock-name-row"><span class="stock-name">${stock.stock_name}</span><span class="stock-code">${stock.stock_code}</span></div><div class="stock-meta">${metaHtml}</div></div><div class="stock-rate"><span class="rate-value ${rateClass}">${rateSign}${stock.peak_rate.toFixed(1)}%</span><div class="rate-bar"><div class="rate-bar-fill ${barClass}" style="width: ${barWidth}%"></div></div></div>${actionsHtml}</div>`;
+function renderWatchlist(stocks) {
+    const tbody = document.getElementById('watchlist-body');
+    if (!stocks || stocks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted-foreground); padding:40px;">등록된 관찰 종목이 없습니다</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = stocks.map(s => `
+        <tr>
+            <td class="stock-name-cell">${s.stock_name}</td>
+            <td class="code-cell">${s.stock_code || '—'}</td>
+            <td class="price-cell">${formatPrice(s.d0_low_price)}</td>
+            <td class="rate-cell ${getRateClass(s.peak_rate)}">${formatRate(s.peak_rate)}</td>
+            <td class="date-cell">${formatDate(s.enrolled_date)}</td>
+            <td class="action-cell">
+                <a class="detail-link" onclick="showDetail('${s.stock_code}')">상세 →</a>
+            </td>
+            <td class="action-cell">
+                <button class="delete-btn" onclick="deleteStock('${s.stock_code}', '${s.stock_name}')">편출</button>
+            </td>
+        </tr>
+    `).join('');
 }
 
-async function addStock(event) {
-    event.preventDefault();
-    const input = document.getElementById('stockNameInput');
-    const btn = document.getElementById('addBtn');
-    const msgEl = document.getElementById('addMessage');
-    const stockName = input.value.trim();
-    if (!stockName) return;
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> 등록 중...';
-    msgEl.className = 'message hidden';
-    try {
-        const resp = await fetch(`${API_BASE}/watchlist`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock_name: stockName }) });
-        const data = await resp.json();
-        if (resp.ok) { msgEl.className = 'message success'; msgEl.textContent = `✅ ${data.stock_name}(${data.stock_code}) 등록 완료! D-0 저가: ${formatPrice(data.d0_low_price)}원`; input.value = ''; await loadAll(); }
-        else { msgEl.className = 'message error'; msgEl.textContent = `❌ ${data.detail || '등록 실패'}`; }
-    } catch (e) { msgEl.className = 'message error'; msgEl.textContent = '❌ 서버와 통신할 수 없습니다'; }
-    finally { btn.disabled = false; btn.innerHTML = '<span class="btn-icon">📌</span> 등록'; setTimeout(() => { msgEl.className = 'message hidden'; }, 5000); }
+async function deleteStock(stockCode, stockName) {
+    if (!confirm(`"${stockName}" 종목을 관찰 목록에서 편출하시겠습니까?\n\n편출 시 텔레그램 알림이 발송됩니다.`)) return;
+
+    const result = await apiDelete(`/api/watchlist/${stockCode}`);
+    if (result) {
+        alert(`${stockName} 종목이 편출되었습니다.`);
+        loadDashboard();
+        loadRecentRegistrations();
+    } else {
+        alert('편출 처리 중 오류가 발생했습니다.');
+    }
 }
 
-async function removeStock(stockCode) {
-    if (!confirm('이 종목의 관찰을 종료하시겠습니까?')) return;
-    try { const resp = await fetch(`${API_BASE}/watchlist/${stockCode}`, { method: 'DELETE' }); if (resp.ok) await loadAll(); else { const data = await resp.json(); alert(data.detail); } } catch { alert('서버와 통신할 수 없습니다'); }
+// ══════════════════════════════════════════
+// 종목 등록
+// ══════════════════════════════════════════
+document.getElementById('btn-add-stock')?.addEventListener('click', async () => {
+    const input = document.getElementById('input-stock-name');
+    const name = input.value.trim();
+    if (!name) return;
+
+    const btn = document.getElementById('btn-add-stock');
+    btn.disabled = true;
+    btn.innerHTML = '처리 중…';
+
+    const result = await apiPost('/api/watchlist', { stock_name: name });
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> 등록`;
+
+    if (result) {
+        input.value = '';
+        loadRecentRegistrations();
+        loadDashboard();
+    }
+});
+
+// 엔터키 등록
+document.getElementById('input-stock-name')?.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') document.getElementById('btn-add-stock')?.click();
+});
+
+async function loadRecentRegistrations() {
+    const stocks = await apiFetch('/api/watchlist?status=watching');
+    const container = document.getElementById('recent-registrations');
+    if (!stocks || stocks.length === 0) {
+        container.innerHTML = '<p style="color:var(--muted-foreground); font-size:14px;">최근 등록된 종목이 없습니다.</p>';
+        return;
+    }
+    const recent = stocks.slice(0, 5);
+    container.innerHTML = recent.map(s => `
+        <div class="recent-card">
+            <div class="rc-left">
+                <span class="rc-name">${s.stock_name}</span>
+                <span class="rc-sub">${s.stock_code || '—'} · ${formatDate(s.enrolled_date)}</span>
+            </div>
+            <div class="rc-right">
+                <span class="rc-price">${formatPrice(s.d0_low_price)}</span>
+                <span class="rc-tag">편입가</span>
+            </div>
+        </div>
+    `).join('');
 }
 
-async function deleteHistory(recordId) {
-    if (!confirm('이 이력을 영구 삭제하시겠습니까? 복구할 수 없습니다.')) return;
-    try { const resp = await fetch(`${API_BASE}/history/${recordId}`, { method: 'DELETE' }); if (resp.ok) await loadAll(); else { const data = await resp.json(); alert(data.detail); } } catch { alert('서버와 통신할 수 없습니다'); }
+// ══════════════════════════════════════════
+// 이력
+// ══════════════════════════════════════════
+async function loadHistory() {
+    let endpoint = '/api/watchlist';
+    if (historyFilter === 'alerted') endpoint += '?status=alerted';
+    else if (historyFilter === 'expired') endpoint += '?status=expired';
+
+    const stocks = await apiFetch(endpoint);
+    renderHistory(stocks || []);
 }
 
+function renderHistory(stocks) {
+    const tbody = document.getElementById('history-body');
+    if (stocks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted-foreground); padding:40px;">이력이 없습니다</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = stocks.map(s => `
+        <tr>
+            <td class="stock-name-cell">${s.stock_name}</td>
+            <td class="code-cell">${s.stock_code || '—'}</td>
+            <td class="date-cell">${formatDate(s.enrolled_date)}</td>
+            <td class="price-cell">${formatPrice(s.d0_low_price)}</td>
+            <td class="rate-cell ${getRateClass(s.peak_rate)}">${formatRate(s.peak_rate)}</td>
+            <td>${renderBadge(s.status)}</td>
+            <td class="action-cell">
+                <a class="detail-link" onclick="showDetail('${s.stock_code}')">상세 →</a>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// 필터 탭
+document.querySelectorAll('.filter-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        historyFilter = tab.dataset.filter;
+        loadHistory();
+    });
+});
+
+// ══════════════════════════════════════════
+// 종목 상세
+// ══════════════════════════════════════════
 async function showDetail(stockCode) {
-    const modal = document.getElementById('detailModal');
-    const body = document.getElementById('modalBody');
-    body.innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span><p style="margin-top:12px;color:var(--text-muted)">로딩 중...</p></div>';
-    modal.classList.remove('hidden');
-    try {
-        const resp = await fetch(`${API_BASE}/watchlist/${stockCode}`);
-        if (!resp.ok) throw new Error();
-        const data = await resp.json();
-        const stock = data.watchlist;
-        const prices = data.daily_prices;
-        const statusLabel = { watching: '👀 관찰 중', alerted: '🚀 50% 달성', expired: '⏰ 만료' }[stock.status];
-        let timelineHtml = prices.length > 0 ? `<div class="price-timeline"><h3>📊 일별 가격 변동</h3>${prices.map(p => { const rc = p.change_rate >= 0 ? 'rate-positive' : 'rate-negative'; const rs = p.change_rate >= 0 ? '+' : ''; return `<div class="timeline-item"><span class="timeline-day">D+${p.day_index}</span><span class="timeline-date">${new Date(p.trade_date).toLocaleDateString('ko-KR')}</span><span class="timeline-price">${formatPrice(p.close_price)}원</span><span class="timeline-rate ${rc}">${rs}${p.change_rate.toFixed(2)}%</span></div>`; }).join('')}</div>` : '<p style="color:var(--text-muted);text-align:center;padding:16px">아직 수집된 가격 데이터가 없습니다</p>';
-        body.innerHTML = `<h2 class="modal-title">${stock.stock_name} <span style="color:var(--text-muted);font-size:14px">${stock.stock_code}</span></h2><div class="detail-grid"><div class="detail-item"><div class="detail-label">상태</div><div class="detail-value">${statusLabel}</div></div><div class="detail-item"><div class="detail-label">편입일</div><div class="detail-value">${new Date(stock.enrolled_date).toLocaleDateString('ko-KR')}</div></div><div class="detail-item"><div class="detail-label">D-0 저가</div><div class="detail-value">${formatPrice(stock.d0_low_price)}원</div></div><div class="detail-item"><div class="detail-label">최고 상승률</div><div class="detail-value rate-positive">+${stock.peak_rate.toFixed(2)}%</div></div></div>${timelineHtml}`;
-    } catch (e) { body.innerHTML = '<div class="empty-state"><p>상세 정보를 불러올 수 없습니다</p></div>'; }
+    navigateTo('detail');
+
+    const detail = await apiFetch(`/api/watchlist/${stockCode}`);
+    if (!detail) return;
+
+    const w = detail.watchlist;
+    document.getElementById('detail-name').textContent = w.stock_name;
+    document.getElementById('detail-code').textContent = w.stock_code || '—';
+    document.getElementById('detail-rate').textContent = formatRate(w.peak_rate);
+
+    // 배지
+    const badge = document.getElementById('detail-badge');
+    badge.textContent = getStatusLabel(w.status);
+    badge.className = 'badge ' + getBadgeClass(w.status);
+
+    // 정보 카드
+    document.getElementById('detail-d0-price').textContent = formatPrice(w.d0_low_price);
+    document.getElementById('detail-date').textContent = formatDate(w.enrolled_date);
+    const targetPrice = w.d0_low_price ? '₩' + Math.round(w.d0_low_price * 1.5).toLocaleString() : '—';
+    document.getElementById('detail-target').textContent = targetPrice;
+
+    // 일별 가격
+    const prices = detail.daily_prices || [];
+    const priceBody = document.getElementById('price-body');
+    if (prices.length === 0) {
+        priceBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--muted-foreground); padding:40px;">가격 데이터가 없습니다</td></tr>`;
+    } else {
+        priceBody.innerHTML = prices.map(p => `
+            <tr>
+                <td class="date-cell">${formatDate(p.trade_date)}</td>
+                <td class="price-cell">${formatPrice(p.open_price)}</td>
+                <td class="price-cell">${formatPrice(p.high_price)}</td>
+                <td class="price-cell">${formatPrice(p.low_price)}</td>
+                <td class="price-cell">${formatPrice(p.close_price)}</td>
+                <td style="font-family:var(--font-mono); font-size:13px; color:var(--muted-foreground);">${p.volume ? p.volume.toLocaleString() : '—'}</td>
+                <td class="rate-cell ${getRateClass(p.change_rate)}">${formatRate(p.change_rate)}</td>
+            </tr>
+        `).join('');
+    }
 }
 
-function closeModal() { document.getElementById('detailModal').classList.add('hidden'); }
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
-function formatPrice(price) { if (price == null) return '-'; return price.toLocaleString('ko-KR'); }
+// ══════════════════════════════════════════
+// 유틸리티
+// ══════════════════════════════════════════
+function formatPrice(price) {
+    if (!price && price !== 0) return '—';
+    return '₩' + Math.round(price).toLocaleString();
+}
+
+function formatRate(rate) {
+    if (!rate && rate !== 0) return '—';
+    const val = parseFloat(rate);
+    const prefix = val >= 0 ? '+' : '';
+    return prefix + val.toFixed(1) + '%';
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr;
+    return d.toISOString().split('T')[0].replace(/-/g, '.');
+}
+
+function getRateClass(rate) {
+    if (!rate && rate !== 0) return 'neutral';
+    return parseFloat(rate) >= 0 ? 'positive' : 'negative';
+}
+
+function renderBadge(status) {
+    const label = getStatusLabel(status);
+    const cls = getBadgeClass(status);
+    return `<span class="badge ${cls}">${label}</span>`;
+}
+
+function getStatusLabel(status) {
+    switch (status) {
+        case 'alerted': return '달성';
+        case 'expired': return '만료';
+        case 'watching': return '관찰 중';
+        default: return status || '—';
+    }
+}
+
+function getBadgeClass(status) {
+    switch (status) {
+        case 'alerted': return 'badge-alerted';
+        case 'expired': return 'badge-expired';
+        case 'watching': return 'badge-watching';
+        default: return '';
+    }
+}
+
+// ══════════════════════════════════════════
+// 새로고침
+// ══════════════════════════════════════════
+document.getElementById('btn-refresh')?.addEventListener('click', () => {
+    loadDashboard();
+    checkServerStatus();
+});
+
+// ══════════════════════════════════════════
+// 초기화
+// ══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    checkServerStatus();
+    loadDashboard();
+    loadRecentRegistrations();
+});

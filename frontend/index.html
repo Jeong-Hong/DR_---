@@ -1,82 +1,316 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>관심종목 관리 대시보드</title>
-    <meta name="description" content="키움증권 REST API 기반 관심종목 추적 및 50% 상승 알림 시스템">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <meta name="description" content="키움 관심종목 관리 시스템 — 실시간 모니터링 대시보드">
+    <title>JEONG — 관심종목 관리</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
-    <div class="app">
-        <header class="header">
-            <div class="header-content">
-                <div class="logo">
-                    <span class="logo-icon">📊</span>
-                    <h1>관심종목 관리</h1>
+    <div class="app-layout">
+        <!-- ═══════════════════════════════════
+         사이드바
+         ═══════════════════════════════════ -->
+        <aside class="sidebar">
+            <div class="sidebar-top">
+                <div class="sidebar-logo">
+                    <div class="logo-mark">H</div>
+                    <span class="logo-text">JEONG</span>
                 </div>
-                <div class="header-actions">
-                    <button id="refreshBtn" class="btn btn-ghost" onclick="loadAll()">
-                        <span class="btn-icon">🔄</span> 새로고침
-                    </button>
-                    <div class="status-indicator" id="serverStatus">
-                        <span class="status-dot"></span>
-                        <span>연결 중...</span>
+                <nav>
+                    <ul class="nav-list">
+                        <li class="nav-item active" data-page="dashboard">
+                            <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="3" width="7" height="7" />
+                                <rect x="14" y="3" width="7" height="7" />
+                                <rect x="3" y="14" width="7" height="7" />
+                                <rect x="14" y="14" width="7" height="7" />
+                            </svg>
+                            <span class="nav-label">대시보드</span>
+                        </li>
+                        <li class="nav-item" data-page="register">
+                            <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="16" />
+                                <line x1="8" y1="12" x2="16" y2="12" />
+                            </svg>
+                            <span class="nav-label">종목 등록</span>
+                        </li>
+                        <li class="nav-item" data-page="history">
+                            <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            <span class="nav-label">이력</span>
+                        </li>
+                        <li class="nav-item" data-page="settings">
+                            <svg class="nav-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3" />
+                                <path
+                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                            </svg>
+                            <span class="nav-label">설정</span>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            <div class="sidebar-bottom">
+                <div class="user-section">
+                    <div class="user-avatar">관</div>
+                    <div class="user-info">
+                        <span class="user-name">관리자</span>
+                        <span class="user-role">마스터 계정</span>
                     </div>
                 </div>
             </div>
-        </header>
-        <main class="main">
-            <section class="stats-grid" id="statsGrid">
-                <div class="stat-card stat-watching"><div class="stat-icon">👀</div><div class="stat-info"><span class="stat-value" id="watchingCount">-</span><span class="stat-label">관찰 중</span></div></div>
-                <div class="stat-card stat-alerted"><div class="stat-icon">🚀</div><div class="stat-info"><span class="stat-value" id="alertedCount">-</span><span class="stat-label">50% 달성</span></div></div>
-                <div class="stat-card stat-expired"><div class="stat-icon">⏰</div><div class="stat-info"><span class="stat-value" id="expiredCount">-</span><span class="stat-label">만료</span></div></div>
-                <div class="stat-card stat-rate"><div class="stat-icon">📈</div><div class="stat-info"><span class="stat-value" id="successRate">-</span><span class="stat-label">달성률</span></div></div>
-            </section>
-            <section class="card add-section">
-                <h2 class="section-title"><span>➕</span> 종목 추가</h2>
-                <form id="addForm" class="add-form" onsubmit="addStock(event)">
-                    <div class="input-group">
-                        <input type="text" id="stockNameInput" placeholder="종목명을 입력하세요 (예: 삼성전자)" required autocomplete="off">
-                        <button type="submit" class="btn btn-primary" id="addBtn"><span class="btn-icon">📌</span> 등록</button>
+        </aside>
+
+        <!-- ═══════════════════════════════════
+         메인 콘텐츠 영역
+         ═══════════════════════════════════ -->
+        <main class="main-content">
+
+            <!-- ─── 대시보드 ─── -->
+            <div id="page-dashboard" class="page active">
+                <div class="page-header">
+                    <div class="page-header-left">
+                        <span class="page-subtitle">실시간 모니터링</span>
+                        <h1 class="page-title">대시보드</h1>
                     </div>
-                    <p class="input-hint">종목명을 입력하면 종목코드와 당일 저가가 자동으로 조회됩니다</p>
-                    <div id="addMessage" class="message hidden"></div>
-                </form>
-            </section>
-            <section class="card">
-                <div class="section-header">
-                    <h2 class="section-title"><span>🔍</span> 관찰 중 종목</h2>
-                    <span class="badge" id="watchingBadge">0</span>
-                </div>
-                <div id="watchingList" class="stock-list">
-                    <div class="empty-state"><span class="empty-icon">📭</span><p>관찰 중인 종목이 없습니다</p></div>
-                </div>
-            </section>
-            <section class="card">
-                <div class="section-header">
-                    <h2 class="section-title"><span>📜</span> 이력</h2>
-                    <div class="filter-tabs">
-                        <button class="tab active" data-filter="all" onclick="filterHistory('all', this)">전체</button>
-                        <button class="tab" data-filter="alerted" onclick="filterHistory('alerted', this)">🚀 달성</button>
-                        <button class="tab" data-filter="expired" onclick="filterHistory('expired', this)">⏰ 만료</button>
+                    <div class="page-header-actions">
+                        <button class="btn-outline" id="btn-refresh" title="새로고침">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10" />
+                                <polyline points="1 20 1 14 7 14" />
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                            </svg>
+                            새로고침
+                        </button>
+                        <div class="server-status">
+                            <span class="status-dot" id="status-dot"></span>
+                            <span id="server-status-text">연결 중…</span>
+                        </div>
                     </div>
                 </div>
-                <div id="historyList" class="stock-list">
-                    <div class="empty-state"><span class="empty-icon">📋</span><p>이력이 없습니다</p></div>
+
+                <!-- 통계 카드 -->
+                <div class="metrics-row" id="metrics-row">
+                    <div class="metric-card">
+                        <span class="metric-label">관찰 중</span>
+                        <span class="metric-value" id="stat-watching">—</span>
+                        <span class="metric-sub">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            활성 모니터링
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">50% 달성</span>
+                        <span class="metric-value" id="stat-alerted">—</span>
+                        <span class="metric-sub">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                            </svg>
+                            목표 도달 종목
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">만료</span>
+                        <span class="metric-value" id="stat-expired">—</span>
+                        <span class="metric-sub">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5">
+                                <circle cx="12" cy="12" r="10" />
+                                <polyline points="12 6 12 12 16 14" />
+                            </svg>
+                            관찰 종료
+                        </span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="metric-label">달성률</span>
+                        <span class="metric-value" id="stat-rate">—</span>
+                        <span class="metric-sub">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 20V10" />
+                                <path d="M18 20V4" />
+                                <path d="M6 20v-4" />
+                            </svg>
+                            전체 성공률
+                        </span>
+                    </div>
                 </div>
-            </section>
+
+                <!-- 관찰 목록 -->
+                <div class="section-header">
+                    <h2 class="section-title">관찰 목록</h2>
+                    <a class="section-link" data-page="history">전체 보기 →</a>
+                </div>
+                <table class="data-table" id="watchlist-table">
+                    <thead>
+                        <tr>
+                            <th>종목명</th>
+                            <th>코드</th>
+                            <th>D-0 저가</th>
+                            <th>최고 상승률</th>
+                            <th>편입일</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="watchlist-body">
+                        <!-- JS 렌더링 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ─── 종목 등록 ─── -->
+            <div id="page-register" class="page">
+                <div class="page-header">
+                    <div class="page-header-left">
+                        <span class="page-subtitle">관찰 종목 추가</span>
+                        <h1 class="page-title">종목 등록</h1>
+                    </div>
+                </div>
+
+                <div class="form-card">
+                    <p class="form-desc">종목명을 입력하면 자동으로 주가를 조회하여 관심종목에 추가합니다.</p>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">종목명</label>
+                            <input type="text" class="form-input" id="input-stock-name" placeholder="예: 삼성전자">
+                        </div>
+                        <button class="btn-primary" id="btn-add-stock">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19" />
+                                <line x1="5" y1="12" x2="19" y2="12" />
+                            </svg>
+                            등록
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <h2 class="section-title">최근 등록</h2>
+                </div>
+                <div id="recent-registrations">
+                    <!-- JS 렌더링 -->
+                </div>
+            </div>
+
+            <!-- ─── 이력 ─── -->
+            <div id="page-history" class="page">
+                <div class="page-header">
+                    <div class="page-header-left">
+                        <span class="page-subtitle">관찰 히스토리</span>
+                        <h1 class="page-title">이력</h1>
+                    </div>
+                </div>
+
+                <div class="filter-tabs">
+                    <button class="filter-tab active" data-filter="all">전체</button>
+                    <button class="filter-tab" data-filter="alerted">🚀 달성</button>
+                    <button class="filter-tab" data-filter="expired">⏰ 만료</button>
+                </div>
+
+                <table class="data-table" id="history-table">
+                    <thead>
+                        <tr>
+                            <th>종목명</th>
+                            <th>코드</th>
+                            <th>편입일</th>
+                            <th>D-0 저가</th>
+                            <th>최고 상승률</th>
+                            <th>상태</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        <!-- JS 렌더링 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ─── 종목 상세 ─── -->
+            <div id="page-detail" class="page">
+                <a class="back-link" id="btn-back-dashboard">← 대시보드로 돌아가기</a>
+                <div class="page-header">
+                    <div class="page-header-left">
+                        <span class="page-subtitle" id="detail-code">005930</span>
+                        <h1 class="page-title" id="detail-name">삼성전자</h1>
+                    </div>
+                    <div class="detail-header-right">
+                        <span class="badge badge-watching" id="detail-badge">관찰 중</span>
+                        <span class="detail-rate" id="detail-rate">+12.3%</span>
+                    </div>
+                </div>
+
+                <div class="info-cards">
+                    <div class="info-card">
+                        <span class="info-label">D-0 저가</span>
+                        <span class="info-value" id="detail-d0-price">—</span>
+                    </div>
+                    <div class="info-card">
+                        <span class="info-label">편입일</span>
+                        <span class="info-value" id="detail-date">—</span>
+                    </div>
+                    <div class="info-card">
+                        <span class="info-label">50% 목표가</span>
+                        <span class="info-value gold" id="detail-target">—</span>
+                    </div>
+                </div>
+
+                <div class="section-header">
+                    <h2 class="section-title">일별 가격 추이</h2>
+                </div>
+                <table class="data-table" id="price-table">
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>시가</th>
+                            <th>고가</th>
+                            <th>저가</th>
+                            <th>종가</th>
+                            <th>거래량</th>
+                            <th>등락률</th>
+                        </tr>
+                    </thead>
+                    <tbody id="price-body">
+                        <!-- JS 렌더링 -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- ─── 설정 (placeholder) ─── -->
+            <div id="page-settings" class="page">
+                <div class="page-header">
+                    <div class="page-header-left">
+                        <span class="page-subtitle">시스템 관리</span>
+                        <h1 class="page-title">설정</h1>
+                    </div>
+                </div>
+                <div class="form-card">
+                    <p class="form-desc">설정 기능은 준비 중입니다.</p>
+                </div>
+            </div>
+
         </main>
-        <div id="detailModal" class="modal hidden">
-            <div class="modal-backdrop" onclick="closeModal()"></div>
-            <div class="modal-content">
-                <button class="modal-close" onclick="closeModal()">✕</button>
-                <div id="modalBody"></div>
-            </div>
-        </div>
     </div>
+
     <script src="app.js"></script>
 </body>
+
 </html>
